@@ -8,6 +8,10 @@ interface Task {
 type Promisify<T> = T extends Promise<any> ? T : Promise<T>;
 
 export interface AsyncQueueOptions {
+    /**
+     * The maximum number of concurrent tasks to run.
+     * @default 1
+     */
     concurrency?: number;
 }
 

@@ -29,7 +29,7 @@ import { AsyncQueue } from "@axetroy/async-queue";
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const queue = new AsyncTaskQueue(2);
+const queue = new AsyncTaskQueue({ concurrency: 2 });
 // Add task to the queue
 queue.enqueue(() => delay(1000).then(() => console.log("Task 1 completed")));
 queue.enqueue(() => delay(500).then(() => console.log("Task 2 completed")));
