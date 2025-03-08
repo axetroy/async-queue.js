@@ -1,6 +1,6 @@
 {
     "name": "@axetroy/async-queue",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "private": false,
     "description": "A simple async queue",
     "sideEffects": false,
