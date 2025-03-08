@@ -1,5 +1,5 @@
 {
-    "name": "async-queue",
+    "name": "@axetroy/async-queue",
     "version": "0.1.0",
     "private": false,
     "description": "A simple async queue",
