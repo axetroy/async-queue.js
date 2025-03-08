@@ -1,8 +1,11 @@
+type Resolver = (value?: unknown) => void;
+type Rejector = (reason?: unknown) => void;
+
 interface Task {
     task: Function;
     args: unknown[];
-    resolve: (value: unknown) => void;
-    reject: (reason: unknown) => void;
+    resolve: Resolver;
+    reject: Rejector;
 }
 
 type Promisify<T> = T extends Promise<any> ? T : Promise<T>;
@@ -45,7 +48,7 @@ export class AsyncQueue implements Disposable {
      * Resolvers waiting for all tasks to complete
      * @internal
      */
-    private _pendingResolves: (() => void)[] = [];
+    private _pendingResolves: Array<{ resolve: Resolver; reject: Rejector }> = [];
 
     /**
      * Creates an AsyncQueue instance.
@@ -78,7 +81,7 @@ export class AsyncQueue implements Disposable {
             // Queue is empty, resolve pending promises
             if (this._running === 0) {
                 const pending = this._pendingResolves.splice(0);
-                pending.forEach((resolve) => resolve());
+                pending.forEach(({ resolve }) => resolve());
             }
             return;
         }
@@ -152,7 +155,7 @@ export class AsyncQueue implements Disposable {
     waitForAll(): Promise<void> {
         return this._running === 0 && this._queue.length === 0
             ? Promise.resolve()
-            : new Promise((resolve) => this._pendingResolves.push(resolve));
+            : new Promise((resolve, reject) => this._pendingResolves.push({ resolve, reject }));
     }
 
     /** Disposes of the queue, rejecting any pending tasks. */
@@ -161,7 +164,6 @@ export class AsyncQueue implements Disposable {
             const { reject } = this._queue.shift() as Task;
             reject(new Error("Queue disposed before execution."));
         }
-        this._pendingResolves.length = 0;
     }
 
     /** Implements Disposable interface cleanup. */
