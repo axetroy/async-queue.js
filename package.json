@@ -33,7 +33,7 @@
         "prepack": "npm run build"
     },
     "author": "Axetroy <axetroy.dev@gmail.com>",
-    "license": "MIT",
+    "license": "Anti 996",
     "devDependencies": {
         "@types/node": "^22.13.10",
         "tsx": "^4.19.2",
