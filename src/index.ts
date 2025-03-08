@@ -16,32 +16,49 @@ export interface AsyncQueueOptions {
 }
 
 export class AsyncQueue implements Disposable {
-    /** @internal */
+    /**
+     * Maximum number of concurrent tasks
+     * @internal
+     */
     private _concurrency: number;
-    /** @internal */
+    /**
+     * Currently running tasks count
+     * @internal
+     */
     private _running = 0;
-    /** @internal */
+    /**
+     * Pending task queue
+     * @internal
+     */
     private _queue: Task[] = [];
-    /** @internal */
-    private __paused = false;
-    /** @internal */
+    /**
+     * Whether the queue is paused
+     * @internal
+     */
+    private _paused = false;
+    /**
+     * Completed task count
+     * @internal
+     */
     private _completed = 0;
-    /** @internal */
-    private _pendingResolves: Function[] = [];
+    /**
+     * Resolvers waiting for all tasks to complete
+     * @internal
+     */
+    private _pendingResolves: (() => void)[] = [];
 
     /**
      * Creates an AsyncQueue instance.
-     * @param options - The options to create the queue with.
+     * @param options - Configuration options for the queue.
      */
     constructor(options: AsyncQueueOptions = {}) {
-        const { concurrency = 1 } = options;
-        this._concurrency = concurrency;
+        this.setConcurrency(options.concurrency ?? 1);
     }
 
     /**
      * Adds a task to the queue.
-     * @param task - The task to add. Should return a Promise.
-     * @param args - The arguments to call the task with.
+     * @param task - The task function (must return a Promise).
+     * @param args - Arguments for the task function.
      */
     enqueue<T extends (...args: any[]) => any>(task: T, ...args: Parameters<T>): Promisify<ReturnType<T>> {
         return new Promise((resolve, reject) => {
@@ -51,38 +68,26 @@ export class AsyncQueue implements Disposable {
     }
 
     /**
-     * Runs the next task in the queue (if concurrency limit allows).
+     * Runs the next task in the queue, respecting concurrency limits.
      * @internal
      */
     private _runNext() {
-        // If the queue is paused, do not run any tasks
-        if (this.__paused) {
-            return;
-        }
+        if (this._paused || this._running >= this._concurrency) return;
 
-        // If the maximum concurrency is reached, do not run any tasks
-        if (this._running >= this._concurrency) {
-            return;
-        }
-
-        // If the queue is empty and no tasks are running, resolve all pending promises
-        if (this._running === 0 && this._queue.length === 0) {
-            while (this._pendingResolves.length > 0) {
-                const resolve = this._pendingResolves.shift();
-                resolve?.();
-            }
-            return;
-        }
-
-        // If the queue is empty, return
         if (this._queue.length === 0) {
+            // Queue is empty, resolve pending promises
+            if (this._running === 0) {
+                const pending = this._pendingResolves.splice(0);
+                pending.forEach((resolve) => resolve());
+            }
             return;
         }
 
         const { task, args, resolve, reject } = this._queue.shift() as Task;
         this._running++;
 
-        task(...args)
+        Promise.resolve()
+            .then(() => task(...args))
             .then(resolve)
             .catch(reject)
             .finally(() => {
@@ -92,99 +97,79 @@ export class AsyncQueue implements Disposable {
             });
     }
 
-    /**
-     * Gets the current number of running tasks in the queue.
-     */
-    get running() {
+    /** Gets the current number of running tasks. */
+    get running(): number {
         return this._running;
     }
 
-    /**
-     * Gets the number of completed tasks in the queue.
-     */
-    get completed() {
+    /** Gets the number of completed tasks. */
+    get completed(): number {
         return this._completed;
     }
 
-    /**
-     * Gets the number of pending tasks in the queue.
-     */
-    get pending() {
+    /** Gets the number of pending tasks in the queue. */
+    get pending(): number {
         return this._queue.length;
     }
 
-    /**
-     * Gets the current number of concurrent tasks.
-     */
+    /** Gets the current concurrency limit. */
     get concurrency(): number {
         return this._concurrency;
     }
 
     /**
-     * Dynamically updates the number of concurrent tasks.
-     * @param concurrency - The new number of concurrent tasks.
+     * Updates the concurrency limit and attempts to run more tasks.
+     * @param concurrency - New concurrency level.
      */
-    setConcurrency(concurrency: number) {
-        this._concurrency = concurrency;
+    setConcurrency(concurrency: number): void {
+        if (concurrency < 1 || Number.isNaN(concurrency) || !Number.isFinite(concurrency) || !Number.isInteger(concurrency)) {
+            throw new RangeError("Concurrency must be a positive integer.");
+        }
+        this._concurrency = Math.max(1, concurrency);
         this._runNext();
     }
 
-    /**
-     * Clears the remaining queue without rejecting tasks.
-     */
+    /** Clears the remaining tasks in the queue. */
     clear(): void {
-        this._queue = [];
+        this._queue.length = 0;
+        this._runNext();
     }
 
-    /**
-     * Pauses the queue processing.
-     */
+    /** Pauses the execution of queued tasks. */
     pause(): void {
-        this.__paused = true;
+        this._paused = true;
     }
 
-    /**
-     * Resumes the queue processing.
-     */
+    /** Resumes execution of tasks in the queue. */
     resume(): void {
-        if (this.__paused) {
-            this.__paused = false;
+        if (this._paused) {
+            this._paused = false;
             this._runNext();
         }
     }
 
-    /**
-     * Waits for all tasks to complete.
-     */
+    /** Waits for all queued and running tasks to complete. */
     waitForAll(): Promise<void> {
-        if (this._running === 0 && this._queue.length === 0) {
-            return Promise.resolve(); // Queue is empty, return immediately
-        }
-        return new Promise((resolve) => {
-            this._pendingResolves.push(resolve);
-        });
+        return this._running === 0 && this._queue.length === 0
+            ? Promise.resolve()
+            : new Promise((resolve) => this._pendingResolves.push(resolve));
     }
 
-    /**
-     * Releases resources, clears the queue, and ensures unexecuted tasks are rejected.
-     */
+    /** Disposes of the queue, rejecting any pending tasks. */
     dispose(): void {
-        while (this._queue.length > 0) {
+        while (this._queue.length) {
             const { reject } = this._queue.shift() as Task;
             reject(new Error("Queue disposed before execution."));
         }
+        this._pendingResolves.length = 0;
     }
 
-    /**
-     * Releases resources, clears the queue, and ensures unexecuted tasks are rejected.
-     */
+    /** Implements Disposable interface cleanup. */
     [Symbol.dispose]() {
         this.dispose();
     }
 
-    /**
-     * Returns the string representation of the object.
-     */
+    /** Returns a string tag for debugging. */
     get [Symbol.toStringTag]() {
         return "AsyncQueue";
     }
