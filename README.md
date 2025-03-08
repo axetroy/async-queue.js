@@ -7,6 +7,8 @@
 
 A library to limit the number of concurrent asynchronous tasks.
 
+The queue will start immediately when the task is added to the queue.
+
 ## Installation
 
 ```bash
@@ -24,7 +26,6 @@ const { AsyncQueue } = require("@axetroy/async-queue");
 ```
 
 ```js
-// import via esm
 import { AsyncQueue } from "@axetroy/async-queue";
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
