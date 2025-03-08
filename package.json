@@ -1,0 +1,56 @@
+{
+    "name": "async-queue",
+    "version": "0.1.0",
+    "private": false,
+    "description": "A simple async queue",
+    "sideEffects": false,
+    "files": [
+        "dist"
+    ],
+    "main": "./dist/cjs/index.cjs",
+    "module": "./dist/esm/index.mjs",
+    "exports": {
+        "./package.json": {
+            "import": "./package.json",
+            "require": "./package.json"
+        },
+        ".": {
+            "require": {
+                "default": "./dist/cjs/index.cjs",
+                "types": "./dist/cjs/index.d.ts"
+            },
+            "import": {
+                "default": "./dist/esm/index.mjs",
+                "types": "./dist/esm/index.d.ts"
+            }
+        }
+    },
+    "scripts": {
+        "test": "node --import tsx --test **/*.test.ts",
+        "test:update-snapshot": "node --import tsx --test --test-update-snapshots **/*.test.ts",
+        "build": "npm run build:esm && npm run build:cjs",
+        "build:esm": "tsc -p ./tsconfig.esm.json && node script/covert2mjs.cjs",
+        "build:cjs": "tsc -p ./tsconfig.cjs.json && node script/covert2cjs.cjs",
+        "prepack": "npm run build"
+    },
+    "author": "Axetroy <axetroy.dev@gmail.com>",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^22.13.10",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2"
+    },
+    "keywords": [
+        "queue",
+        "async",
+        "async-queue"
+    ],
+    "homepage": "https://github.com/axetroy/async-queue.js#readme",
+    "bugs": {
+        "url": "https://github.com/axetroy/async-queue.js/issues"
+    },
+    "repository": {
+        "type": "https",
+        "url": "https://github.com/axetroy/async-queue.js.git"
+    }
+}
